@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FokusFlow — Tägliche Ziele & Wöchentliche Erfolge</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar & Smooth Animations */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+
+        /* Ring Progress Animation */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        /* Pop animation when checking items */
+        @keyframes checkPop {
+            0% { transform: scale(0.85); }
+            50% { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+        .animate-check-pop {
+            animation: checkPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Subtle shine effect for the Daily Highlight card */
+        .highlight-glow {
+            position: relative;
+            overflow: hidden;
+        }
+        .highlight-glow::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, rgba(99, 102, 241, 0.12) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* Bar Chart Transition */
+        .chart-bar {
+            transition: height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans transition-colors duration-300 selection:bg-brand-500 selection:text-white pb-16">
+
+    <!-- Konfetti Canvas für Erfolgs-Effekte -->
+    <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50 w-full h-full"></canvas>
+
+    <!-- Toast Benachrichtigung -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Top Navigation / Header -->
+    <header class="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+            <!-- Brand & Date -->
+            <div class="flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/25">
+                    <i data-lucide="compass" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <h1 class="font-display font-bold text-xl tracking-tight text-slate-900 dark:text-white">FokusFlow</h1>
+                        <span id="kw-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400 border border-brand-200/60 dark:border-brand-500/30">
+                            KW --
+                        </span>
+                    </div>
+                    <p id="current-date-display" class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+                        Lade Datum...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Streak Quick Adjuster -->
+                <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold" title="Aktuelle Serie in Tagen">
+                    <i data-lucide="flame" class="w-4 h-4 fill-amber-500 text-amber-500"></i>
+                    <span id="header-streak-count">5</span>
+                    <span>Tage Streak</span>
+                </div>
+
+                <!-- Reset Week Button -->
+                <button onclick="openResetModal()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 transition-all" title="Woche zurücksetzen oder Demo-Daten laden">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Woche zurücksetzen</span>
+                </button>
+
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" id="theme-toggle-btn" class="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 transition-all" aria-label="Darstellung wechseln">
+                    <i data-lucide="sun" id="theme-icon-sun" class="w-5 h-5 hidden"></i>
+                    <i data-lucide="moon" id="theme-icon-moon" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+
+        <!-- SECTION 1: Tagesfokus (Daily Highlight) & KPI Statistik-Karten -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Daily Highlight / Hauptziel des Tages (5 Spalten auf Desktop) -->
+            <div class="lg:col-span-5 highlight-glow rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between relative">
+                <div>
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            Hauptziel des Tages (Daily Highlight)
+                        </span>
+                        <span id="highlight-status-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                            Offen
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                        Welche eine Sache macht den heutigen Tag zu einem vollen Erfolg, wenn du sie erledigst?
+                    </p>
+
+                    <!-- Interactive Highlight Box -->
+                    <div class="flex items-start gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 transition-all">
+                        <button id="highlight-checkbox" onclick="toggleDailyHighlight()" class="mt-0.5 w-6 h-6 rounded-lg border-2 border-brand-500 flex items-center justify-center transition-all flex-shrink-0 hover:bg-brand-500/10" aria-label="Hauptziel abhaken">
+                            <i data-lucide="check" id="highlight-check-icon" class="w-4 h-4 text-white hidden"></i>
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <input 
+                                type="text" 
+                                id="daily-highlight-input" 
+                                placeholder="Dein wichtigstes Fokus-Ziel für heute..." 
+                                oninput="saveDailyHighlightText(this.value)"
+                                class="w-full bg-transparent font-display font-bold text-base sm:text-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i>
+                        Tipp: Starte mit diesem Ziel vor allen anderen Aufgaben.
+                    </span>
+                    <button onclick="focusHighlightInput()" class="text-brand-600 dark:text-brand-400 hover:underline font-medium">
+                        Bearbeiten
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4 KPI Schnell-Statistik-Karten (7 Spalten auf Desktop) -->
+            <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                <!-- KPI 1: Heutiger Fortschritt (%) mit SVG Ring -->
+                <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Heutiger Fortschritt</span>
+                        <div class="flex items-baseline gap-2">
+                            <h2 id="kpi-daily-percent" class="font-display font-extrabold text-3xl text-slate-900 dark:text-white">0%</h2>
+                            <span id="kpi-daily-fraction" class="text-xs font-medium text-slate-500 dark:text-slate-400">(0/0 erledigt)</span>
+                        </div>
+                        <p id="kpi-daily-subtext" class="text-xs text-slate-500 dark:text-slate-400">Tagesziele + Fokus-Ziel</p>
+                    </div>
+                    <!-- SVG Progress Ring -->
+                    <div class="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-16 h-16" viewBox="0 0 64 64">
+                            <circle class="text-slate-100 dark:text-slate-800" stroke-width="6" stroke="currentColor" fill="transparent" r="26" cx="32" cy="32"/>
+                            <circle id="daily-ring-circle" class="progress-ring__circle text-brand-500" stroke-width="6" stroke-dasharray="163.36" stroke-dashoffset="163.36" stroke-linecap="round" stroke="currentColor" fill="transparent" r="26" cx="32" cy="32"/>
+                        </svg>
+                        <i data-lucide="target" class="w-5 h-5 text-brand-500 absolute"></i>
+                    </div>
+                </div>
+
+                <!-- KPI 2: Wochen-Erfolgsquote (%) -->
+                <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm flex items-center justify-between gap-4">
+                    <div class="space-y-1 flex-1">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Wochen-Erfolgsquote</span>
+                        <div class="flex items-baseline gap-2">
+                            <h2 id="kpi-weekly-percent" class="font-display font-extrabold text-3xl text-emerald-600 dark:text-emerald-400">0%</h2>
+                            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Habit-Zielwert</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
+                            <div id="kpi-weekly-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="trending-up" class="w-6 h-6"></i>
+                    </div>
+                </div>
+
+                <!-- KPI 3: Erledigte Ziele diese Woche -->
+                <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Erledigte Ziele (Woche)</span>
+                        <div class="flex items-baseline gap-2">
+                            <h2 id="kpi-total-completed" class="font-display font-extrabold text-3xl text-slate-900 dark:text-white">0</h2>
+                            <span class="text-xs font-medium text-brand-600 dark:text-brand-400">Check-ins gesamt</span>
+                        </div>
+                        <p id="kpi-total-breakdown" class="text-xs text-slate-500 dark:text-slate-400">0 Gewohnheiten • 0 Tagesaufgaben</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                    </div>
+                </div>
+
+                <!-- KPI 4: Aktueller Streak -->
+                <div class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-5 shadow-sm flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Aktueller Streak</span>
+                        <div class="flex items-baseline gap-2">
+                            <h2 id="kpi-streak-days" class="font-display font-extrabold text-3xl text-amber-500">5</h2>
+                            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Tage in Folge</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 pt-0.5">
+                            <button onclick="adjustStreak(-1)" class="px-2 py-0.5 text-xs rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Streak verringern">-1</button>
+                            <button onclick="adjustStreak(1)" class="px-2 py-0.5 text-xs rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 font-medium transition" title="Streak erhöhen">+1 Tag</button>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="flame" class="w-6 h-6 fill-amber-500/20"></i>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- SECTION 2: Tägliche Ziele (Links) & Wöchentliches Erfolgs-Diagramm (Rechts) -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Tägliche Ziele (To-Do & Tagesplanung) - 7 Spalten -->
+            <div class="lg:col-span-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm space-y-5">
+                <!-- Header & Progress Bar -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="list-todo" class="w-5 h-5 text-brand-500"></i>
+                            <h2 class="font-display font-bold text-lg text-slate-900 dark:text-white">Tägliche Ziele & Aufgaben</h2>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Plane deine Aufgaben nach Priorität und Kategorie</p>
+                    </div>
+
+                    <!-- Tages-Fortschrittsbalken kompakt -->
+                    <div class="sm:w-48 space-y-1">
+                        <div class="flex justify-between text-xs font-medium">
+                            <span class="text-slate-500 dark:text-slate-400">Aufgaben-Fortschritt</span>
+                            <span id="todo-progress-label" class="text-brand-600 dark:text-brand-400 font-semibold">0%</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div id="todo-progress-bar" class="h-full bg-gradient-to-r from-brand-500 to-purple-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formular: Neues Tagesziel hinzufügen -->
+                <form id="add-todo-form" onsubmit="handleAddTodo(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                    <div class="sm:col-span-6">
+                        <input 
+                            type="text" 
+                            id="new-todo-title" 
+                            required
+                            placeholder="Neues Tagesziel eingeben..." 
+                            class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                    </div>
+                    <div class="sm:col-span-3">
+                        <select id="new-todo-category" class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="Studium">🎓 Studium</option>
+                            <option value="Kreativprojekt">🎬 Kreativprojekt</option>
+                            <option value="Fitness">💪 Fitness</option>
+                            <option value="Alltag">🌿 Alltag</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <select id="new-todo-priority" class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="Hoch">🔥 Hoch</option>
+                            <option value="Mittel" selected>⚡ Mittel</option>
+                            <option value="Niedrig">🌱 Niedrig</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-1 flex">
+                        <button type="submit" class="w-full flex items-center justify-center py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-medium text-sm shadow-sm shadow-brand-500/20 transition" title="Aufgabe hinzufügen">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Kategorie-Filter Tabs -->
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div id="todo-filter-tabs" class="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        <button onclick="setTodoFilter('Alle')" data-filter="Alle" class="filter-tab px-3 py-1.5 rounded-xl text-xs font-semibold transition-all bg-brand-600 text-white">
+                            Alle
+                        </button>
+                        <button onclick="setTodoFilter('Studium')" data-filter="Studium" class="filter-tab px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+                            🎓 Studium
+                        </button>
+                        <button onclick="setTodoFilter('Kreativprojekt')" data-filter="Kreativprojekt" class="filter-tab px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+                            🎬 Kreativprojekt
+                        </button>
+                        <button onclick="setTodoFilter('Fitness')" data-filter="Fitness" class="filter-tab px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+                            💪 Fitness
+                        </button>
+                        <button onclick="setTodoFilter('Alltag')" data-filter="Alltag" class="filter-tab px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+                            🌿 Alltag
+                        </button>
+                    </div>
+
+                    <button onclick="clearCompletedTodos()" class="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition">
+                        Erledigte entfernen
+                    </button>
+                </div>
+
+                <!-- Aufgaben-Liste -->
+                <div id="todo-list-container" class="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                    <!-- Dynamisch per JS gerendert -->
+                </div>
+            </div>
+
+            <!-- Visuelles Wochen-Diagramm & Tages-Analyse - 5 Spalten -->
+            <div class="lg:col-span-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-6">
+                <div>
+                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-500"></i>
+                                <h2 class="font-display font-bold text-lg text-slate-900 dark:text-white">Wöchentliche Aktivitätskurve</h2>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Erreichte Gewohnheiten pro Wochentag (Mo – So)</p>
+                        </div>
+                        <span id="best-day-badge" class="text-xs font-semibold px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            Top-Tag: --
+                        </span>
+                    </div>
+
+                    <!-- Balkendiagramm Container -->
+                    <div class="pt-6 pb-2">
+                        <div id="weekly-bar-chart" class="h-48 flex items-end justify-between gap-2 sm:gap-4 px-2 pt-6 border-b border-slate-100 dark:border-slate-800">
+                            <!-- Dynamisch per JS gerendert -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kategorien-Verteilung / Fokus-Balance -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Heutige Fokus-Verteilung</span>
+                        <span id="category-summary-count" class="text-xs font-medium text-slate-500 dark:text-slate-400">0 Aufgaben</span>
+                    </div>
+                    <div id="category-breakdown-bars" class="grid grid-cols-2 gap-2.5">
+                        <!-- Dynamisch per JS gerendert -->
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- SECTION 3: Wöchentliche Erfolgs-Übersicht & Habit-Matrix (Mo - So) -->
+        <section class="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm space-y-5">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar-check-2" class="w-5 h-5 text-brand-500"></i>
+                        <h2 class="font-display font-bold text-lg text-slate-900 dark:text-white">Wöchentliche Erfolgs-Matrix & Gewohnheiten (Mo – So)</h2>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Hake deine wiederkehrenden Gewohnheiten für jeden Wochentag ab – das Diagramm oben aktualisiert sich sofort.
+                    </p>
+                </div>
+
+                <!-- Neues Wochenziel / Habit hinzufügen -->
+                <form onsubmit="handleAddHabit(event)" class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <input 
+                        type="text" 
+                        id="new-habit-name" 
+                        required
+                        placeholder="Neue Gewohnheit (z.B. 30 Min Lesen)..." 
+                        class="w-full sm:w-64 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <select id="new-habit-target" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500" title="Wochenziel (Tage pro Woche)">
+                        <option value="3">Ziel: 3x / Wo.</option>
+                        <option value="4">Ziel: 4x / Wo.</option>
+                        <option value="5" selected>Ziel: 5x / Wo.</option>
+                        <option value="6">Ziel: 6x / Wo.</option>
+                        <option value="7">Ziel: 7x / Wo.</option>
+                    </select>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-semibold shadow-sm shadow-brand-500/20 transition flex-shrink-0">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Gewohnheit</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Responsive Habit Table -->
+            <div class="overflow-x-auto -mx-2 px-2">
+                <table class="w-full min-w-[680px] text-left border-collapse">
+                    <thead>
+                        <tr id="habit-table-header" class="border-b border-slate-200/70 dark:border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            <!-- Dynamisch per JS mit Hervorhebung des heutigen Wochentags -->
+                        </tr>
+                    </thead>
+                    <tbody id="habit-matrix-body" class="divide-y divide-slate-100 dark:divide-slate-800/70 text-sm">
+                        <!-- Dynamisch per JS gerendert -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION 4: Wochen-Reflexion & Erfolgs-Logbuch -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Meilensteine & Erfolge der Woche (8 Spalten) -->
+            <div class="lg:col-span-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="trophy" class="w-5 h-5 text-amber-500"></i>
+                            <h2 class="font-display font-bold text-lg text-slate-900 dark:text-white">Meilensteine & Erfolge der Woche</h2>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Halte besondere Momente, abgeschlossene Teilprojekte und Aha-Erlebnisse fest</p>
+                    </div>
+                    <span id="wins-count-badge" class="text-xs font-semibold px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 self-start sm:self-auto">
+                        0 Erfolge dokumentiert
+                    </span>
+                </div>
+
+                <!-- Formular: Neuen Meilenstein eintragen -->
+                <form onsubmit="handleAddWin(event)" class="flex flex-col sm:flex-row gap-2.5">
+                    <input 
+                        type="text" 
+                        id="new-win-text" 
+                        required
+                        placeholder="Was hast du diese Woche Besonderes geschafft? (z.B. Rohschnitt fertiggestellt, Klausur-Kapitel zusammengefasst)..." 
+                        class="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <select id="new-win-tag" class="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="Meilenstein">🏆 Meilenstein</option>
+                        <option value="Studium">🎓 Studium</option>
+                        <option value="Kreativprojekt">🎬 Kreativprojekt</option>
+                        <option value="Fitness">💪 Fitness</option>
+                    </select>
+                    <button type="submit" class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm shadow-sm shadow-amber-500/20 transition flex-shrink-0">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>Erfolg festhalten</span>
+                    </button>
+                </form>
+
+                <!-- Erfolgs-Karten Grid -->
+                <div id="wins-grid-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                    <!-- Dynamisch per JS gerendert -->
+                </div>
+            </div>
+
+            <!-- Wöchentliches Reflexions-Notizbuch (4 Spalten) -->
+            <div class="lg:col-span-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between space-y-4">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="book-open-check" class="w-5 h-5 text-purple-500"></i>
+                            <h2 class="font-display font-bold text-lg text-slate-900 dark:text-white">Wochen-Reflexion</h2>
+                        </div>
+                        <span id="reflection-saved-indicator" class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 opacity-0 transition-opacity">
+                            Gespeichert ✓
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Kurzer Rückblick: Worauf bist du diese Woche stolz und was nimmst du dir für nächste Woche vor?
+                    </p>
+
+                    <textarea 
+                        id="weekly-reflection-textarea" 
+                        rows="7"
+                        oninput="saveReflectionText(this.value)"
+                        placeholder="Notizen, Erkenntnisse & Fokus für die kommende Woche..."
+                        class="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none leading-relaxed"
+                    ></textarea>
+                </div>
+
+                <div class="p-3.5 rounded-2xl bg-gradient-to-r from-brand-500/10 via-purple-500/10 to-amber-500/10 border border-brand-500/15 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-snug">
+                        <strong>Konsistenz schlägt Perfektion:</strong> Schon 4–5 erfolgreiche Tage pro Gewohnheit führen langfristig zu enormen Fortschritten.
+                    </p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: Aufgabe bearbeiten -->
+    <div id="edit-todo-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-display font-bold text-lg text-slate-900 dark:text-white">Tagesziel bearbeiten</h3>
+                <button onclick="closeEditTodoModal()" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="saveEditedTodo(event)" class="space-y-4">
+                <input type="hidden" id="edit-todo-id">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1.5">Bezeichnung</label>
+                    <input type="text" id="edit-todo-title" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1.5">Kategorie</label>
+                        <select id="edit-todo-category" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-200">
+                            <option value="Studium">🎓 Studium</option>
+                            <option value="Kreativprojekt">🎬 Kreativprojekt</option>
+                            <option value="Fitness">💪 Fitness</option>
+                            <option value="Alltag">🌿 Alltag</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1.5">Priorität</label>
+                        <select id="edit-todo-priority" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-200">
+                            <option value="Hoch">🔥 Hoch</option>
+                            <option value="Mittel">⚡ Mittel</option>
+                            <option value="Niedrig">🌱 Niedrig</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEditTodoModal()" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Abbrechen</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Woche zurücksetzen / Daten verwalten -->
+    <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-display font-bold text-lg text-slate-900 dark:text-white">Woche zurücksetzen</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Wähle aus, wie du in die neue Woche starten möchtest.</p>
+                </div>
+            </div>
+
+            <div class="space-y-2.5 pt-2">
+                <button onclick="resetWeeklyCheckinsOnly()" class="w-full text-left p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-brand-500 dark:hover:border-brand-500 bg-slate-50/70 dark:bg-slate-800/50 transition group">
+                    <div class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-brand-500 transition">1. Neue Woche starten (Gewohnheiten behalten)</div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Setzt alle Haken von Mo–So sowie erledigte Aufgaben zurück, behält aber deine Gewohnheiten bei.</p>
+                </button>
+
+                <button onclick="restoreDemoData()" class="w-full text-left p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 bg-slate-50/70 dark:bg-slate-800/50 transition group">
+                    <div class="font-semibold text-sm text-slate-900 dark:text-white group-hover:text-emerald-500 transition">2. Beispiel-Daten wiederherstellen</div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Lädt die vorbefüllten Beispiel-Aufgaben, Gewohnheiten und Erfolge zum Ausprobieren.</p>
+                </button>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Schließen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // ==========================================
+        // 1. KONSTANTEN & STANDARD-DATEN (DEMO STATE)
+        // ==========================================
+        const STORAGE_KEY = 'fokusflow_dashboard_v1';
+        const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+        const WEEKDAYS_FULL = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+
+        const CATEGORY_STYLES = {
+            'Studium': {
+                badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+                bar: 'bg-blue-500',
+                icon: '🎓'
+            },
+            'Kreativprojekt': {
+                badge: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+                bar: 'bg-purple-500',
+                icon: '🎬'
+            },
+            'Fitness': {
+                badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+                bar: 'bg-emerald-500',
+                icon: '💪'
+            },
+            'Alltag': {
+                badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+                bar: 'bg-amber-500',
+                icon: '🌿'
+            },
+            'Meilenstein': {
+                badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+                bar: 'bg-amber-500',
+                icon: '🏆'
+            }
+        };
+
+        const PRIORITY_STYLES = {
+            'Hoch': 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+            'Mittel': 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+            'Niedrig': 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
+        };
+
+        function getDefaultState() {
+            return {
+                theme: 'dark',
+                streak: 6,
+                dailyHighlight: {
+                    text: 'Konzept & Storyboard für das neue Kurzvideo-Projekt finalisieren',
+                    completed: false
+                },
+                todos: [
+                    { id: 't1', title: 'Vorlesungsfolien & Fachliteratur zusammenfassen (Kapitel 4)', category: 'Studium', priority: 'Hoch', completed: true },
+                    { id: 't2', title: 'Color-Grading & Audio-Mix für aktuelles Videoprojekt testen', category: 'Kreativprojekt', priority: 'Hoch', completed: false },
+                    { id: 't3', title: '60 Min. Krafttraining & Mobility-Session im Gym', category: 'Fitness', priority: 'Mittel', completed: true },
+                    { id: 't4', title: 'Ausrüstung & Kamera-Akku für den morgigen Dreh vorbereiten', category: 'Kreativprojekt', priority: 'Mittel', completed: false },
+                    { id: 't5', title: 'Schreibtisch aufräumen & Wochen-Einkauf erledigen', category: 'Alltag', priority: 'Niedrig', completed: false }
+                ],
+                habits: [
+                    { id: 'h1', name: '📚 Uni-Vorbereitung / Lektüre (60 Min.)', target: 5, days: [true, true, true, true, false, false, false] },
+                    { id: 'h2', name: '🏋️ Training / Gym & Bewegung', target: 4, days: [true, false, true, true, false, false, false] },
+                    { id: 'h3', name: '🎬 Foto- & Videoprojekt (Schnitt / Konzept)', target: 5, days: [true, true, false, true, false, false, false] },
+                    { id: 'h4', name: '⚡ Fokus-Arbeitsblock ohne Handy (90 Min.)', target: 6, days: [true, true, true, true, false, false, false] },
+                    { id: 'h5', name: '💧 2,5L Wasser & mind. 7,5h Schlaf', target: 7, days: [true, true, true, false, false, false, false] }
+                ],
+                wins: [
+                    { id: 'w1', text: 'Alle Seminar-Abgaben für diese Woche schon am Mittwoch fertiggestellt!', tag: 'Studium', day: 'Mittwoch' },
+                    { id: 'w2', text: 'Neue Lichtsetzung für B-Roll-Aufnahmen erfolgreich getestet', tag: 'Kreativprojekt', day: 'Dienstag' },
+                    { id: 'w3', text: 'Persönliche Bestleistung beim Training erreicht', tag: 'Fitness', day: 'Montag' }
+                ],
+                reflection: 'Die festen 90-Minuten-Fokusblöcke am Vormittag helfen enorm dabei, erst die Uni-Aufgaben abzuschließen und danach den Kopf frei für kreative Film- und Fotoprojekte zu haben.'
+            };
+        }
+
+        // Aktueller App-State
+        let appState = loadState();
+        let activeTodoFilter = 'Alle';
+
+        // ==========================================
+        // 2. SPEICHERUNG & INITIALISIERUNG
+        // ==========================================
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return getDefaultState();
+                const parsed = JSON.parse(raw);
+                return { ...getDefaultState(), ...parsed };
+            } catch (e) {
+                console.error('Fehler beim Laden des localStorage:', e);
+                return getDefaultState();
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                console.error('Fehler beim Speichern im localStorage:', e);
+            }
+        }
+
+        // Berechnet den heutigen Wochentags-Index (0 = Montag, 6 = Sonntag)
+        function getTodayWeekdayIndex() {
+            const jsDay = new Date().getDay(); // 0 = So, 1 = Mo ...
+            return jsDay === 0 ? 6 : jsDay - 1;
+        }
+
+        // Berechnet die ISO-Kalenderwoche
+        function getISOWeekNumber(d) {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function initDateHeader() {
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('de-DE', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            });
+            const kw = getISOWeekNumber(now);
+            document.getElementById('current-date-display').textContent = formatter.format(now);
+            document.getElementById('kw-badge').textContent = `KW ${kw}`;
+        }
+
+        // ==========================================
+        // 3. THEME VERWALTUNG (DARK / LIGHT MODE)
+        // ==========================================
+        function applyTheme() {
+            const htmlEl = document.documentElement;
+            const sunIcon = document.getElementById('theme-icon-sun');
+            const moonIcon = document.getElementById('theme-icon-moon');
+
+            if (appState.theme === 'dark') {
+                htmlEl.classList.add('dark');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                htmlEl.classList.remove('dark');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+
+        function toggleTheme() {
+            appState.theme = appState.theme === 'dark' ? 'light' : 'dark';
+            saveState();
+            applyTheme();
+        }
+
+        // ==========================================
+        // 4. TAGESFOKUS (DAILY HIGHLIGHT) & STREAK
+        // ==========================================
+        function renderDailyHighlight() {
+            const input = document.getElementById('daily-highlight-input');
+            const checkbox = document.getElementById('highlight-checkbox');
+            const checkIcon = document.getElementById('highlight-check-icon');
+            const badge = document.getElementById('highlight-status-badge');
+
+            input.value = appState.dailyHighlight.text || '';
+
+            if (appState.dailyHighlight.completed) {
+                checkbox.classList.add('bg-brand-600', 'border-brand-600');
+                checkIcon.classList.remove('hidden');
+                input.classList.add('line-through', 'text-slate-400', 'dark:text-slate-500');
+                badge.textContent = 'Erledigt ✨';
+                badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400';
+            } else {
+                checkbox.classList.remove('bg-brand-600', 'border-brand-600');
+                checkIcon.classList.add('hidden');
+                input.classList.remove('line-through', 'text-slate-400', 'dark:text-slate-500');
+                badge.textContent = 'Im Fokus';
+                badge.className = 'text-xs font-medium px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400';
+            }
+        }
+
+        function toggleDailyHighlight() {
+            appState.dailyHighlight.completed = !appState.dailyHighlight.completed;
+            saveState();
+            renderDailyHighlight();
+            updateKPIsAndCharts();
+
+            if (appState.dailyHighlight.completed) {
+                triggerConfetti();
+                showToast('Stark! Du hast dein Hauptziel des Tages erreicht!', 'success');
+            }
+        }
+
+        function saveDailyHighlightText(val) {
+            appState.dailyHighlight.text = val;
+            saveState();
+            updateKPIsAndCharts();
+        }
+
+        function focusHighlightInput() {
+            const input = document.getElementById('daily-highlight-input');
+            input.focus();
+            input.select();
+        }
+
+        function adjustStreak(delta) {
+            appState.streak = Math.max(0, (appState.streak || 0) + delta);
+            saveState();
+            updateKPIsAndCharts();
+        }
+
+        // ==========================================
+        // 5. TÄGLICHE ZIELE (TO-DO LISTE)
+        // ==========================================
+        function setTodoFilter(category) {
+            activeTodoFilter = category;
+            document.querySelectorAll('.filter-tab').forEach(btn => {
+                if (btn.dataset.filter === category) {
+                    btn.className = 'filter-tab px-3 py-1.5 rounded-xl text-xs font-semibold transition-all bg-brand-600 text-white shadow-sm';
+                } else {
+                    btn.className = 'filter-tab px-3 py-1.5 rounded-xl text-xs font-medium transition-all bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700';
+                }
+            });
+            renderTodos();
+        }
+
+        function renderTodos() {
+            const container = document.getElementById('todo-list-container');
+            const filtered = activeTodoFilter === 'Alle'
+                ? appState.todos
+                : appState.todos.filter(t => t.category === activeTodoFilter);
+
+            // Sortierung: Offene zuerst, dann nach Priorität (Hoch -> Mittel -> Niedrig)
+            const prioRank = { 'Hoch': 1, 'Mittel': 2, 'Niedrig': 3 };
+            const sorted = [...filtered].sort((a, b) => {
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                return (prioRank[a.priority] || 2) - (prioRank[b.priority] || 2);
+            });
+
+            if (sorted.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 px-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
+                        <p class="text-sm font-medium">Keine Aufgaben in dieser Ansicht vorhanden.</p>
+                        <p class="text-xs mt-1">Füge oben ein neues Tagesziel hinzu!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sorted.map(todo => {
+                const catStyle = CATEGORY_STYLES[todo.category] || CATEGORY_STYLES['Alltag'];
+                const prioStyle = PRIORITY_STYLES[todo.priority] || PRIORITY_STYLES['Mittel'];
+
+                return `
+                    <div class="group flex items-center justify-between gap-3 p-3.5 rounded-2xl border transition-all ${
+                        todo.completed 
+                            ? 'bg-slate-50/60 dark:bg-slate-800/30 border-slate-200/50 dark:border-slate-800/50 opacity-75' 
+                            : 'bg-white dark:bg-slate-800/70 border-slate-200/80 dark:border-slate-700/70 hover:border-brand-500/50'
+                    }">
+                        <div class="flex items-center gap-3.5 min-w-0 flex-1">
+                            <button 
+                                onclick="toggleTodo('${todo.id}')" 
+                                class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                                    todo.completed 
+                                        ? 'bg-emerald-500 border-emerald-500 text-white animate-check-pop' 
+                                        : 'border-slate-300 dark:border-slate-600 hover:border-brand-500'
+                                }"
+                                aria-label="Aufgabe abhaken"
+                            >
+                                ${todo.completed ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}
+                            </button>
+
+                            <div class="min-w-0 flex-1">
+                                <p onclick="toggleTodo('${todo.id}')" class="text-sm font-medium cursor-pointer truncate ${
+                                    todo.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'
+                                }">
+                                    ${escapeHtml(todo.title)}
+                                </p>
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <span class="text-[11px] font-medium px-2 py-0.5 rounded-md border ${catStyle.badge}">
+                                        ${catStyle.icon} ${todo.category}
+                                    </span>
+                                    <span class="text-[11px] font-medium px-2 py-0.5 rounded-md border ${prioStyle}">
+                                        Prio: ${todo.priority}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="openEditTodoModal('${todo.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition" title="Bearbeiten">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteTodo('${todo.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title="Löschen">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function handleAddTodo(e) {
+            e.preventDefault();
+            const titleEl = document.getElementById('new-todo-title');
+            const categoryEl = document.getElementById('new-todo-category');
+            const priorityEl = document.getElementById('new-todo-priority');
+
+            const title = titleEl.value.trim();
+            if (!title) return;
+
+            appState.todos.unshift({
+                id: 'todo_' + Date.now(),
+                title,
+                category: categoryEl.value,
+                priority: priorityEl.value,
+                completed: false
+            });
+
+            titleEl.value = '';
+            saveState();
+            renderTodos();
+            updateKPIsAndCharts();
+            showToast('Tagesziel hinzugefügt!', 'info');
+        }
+
+        function toggleTodo(id) {
+            const item = appState.todos.find(t => t.id === id);
+            if (!item) return;
+            item.completed = !item.completed;
+            saveState();
+            renderTodos();
+            updateKPIsAndCharts();
+
+            // Prüfen, ob alle heutigen Aufgaben erledigt sind
+            const allDone = appState.todos.length > 0 && appState.todos.every(t => t.completed);
+            if (item.completed && allDone) {
+                triggerConfetti();
+                showToast('100% aller Tagesaufgaben erledigt! Herausragend!', 'success');
+            }
+        }
+
+        function deleteTodo(id) {
+            appState.todos = appState.todos.filter(t => t.id !== id);
+            saveState();
+            renderTodos();
+            updateKPIsAndCharts();
+        }
+
+        function clearCompletedTodos() {
+            const completedCount = appState.todos.filter(t => t.completed).length;
+            if (completedCount === 0) {
+                showToast('Keine erledigten Aufgaben zum Entfernen vorhanden.', 'info');
+                return;
+            }
+            appState.todos = appState.todos.filter(t => !t.completed);
+            saveState();
+            renderTodos();
+            updateKPIsAndCharts();
+            showToast(`${completedCount} erledigte Aufgabe(n) entfernt.`, 'info');
+        }
+
+        // Modal zum Bearbeiten einer Aufgabe
+        function openEditTodoModal(id) {
+            const todo = appState.todos.find(t => t.id === id);
+            if (!todo) return;
+            document.getElementById('edit-todo-id').value = todo.id;
+            document.getElementById('edit-todo-title').value = todo.title;
+            document.getElementById('edit-todo-category').value = todo.category;
+            document.getElementById('edit-todo-priority').value = todo.priority;
+
+            const modal = document.getElementById('edit-todo-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEditTodoModal() {
+            const modal = document.getElementById('edit-todo-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveEditedTodo(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-todo-id').value;
+            const todo = appState.todos.find(t => t.id === id);
+            if (!todo) return;
+
+            todo.title = document.getElementById('edit-todo-title').value.trim();
+            todo.category = document.getElementById('edit-todo-category').value;
+            todo.priority = document.getElementById('edit-todo-priority').value;
+
+            saveState();
+            closeEditTodoModal();
+            renderTodos();
+            updateKPIsAndCharts();
+            showToast('Änderungen gespeichert.', 'info');
+        }
+
+        // ==========================================
+        // 6. WÖCHENTLICHE HABIT-MATRIX (MO - SO)
+        // ==========================================
+        function renderHabitMatrix() {
+            const todayIdx = getTodayWeekdayIndex();
+            const headerRow = document.getElementById('habit-table-header');
+            const tbody = document.getElementById('habit-matrix-body');
+
+            // Tabellenkopf mit Hervorhebung des aktuellen Wochentags
+            headerRow.innerHTML = `
+                <th class="py-3 pr-4 w-64">Gewohnheit / Wochenziel</th>
+                ${WEEKDAYS.map((day, idx) => `
+                    <th class="py-3 px-2 text-center">
+                        <span class="inline-flex flex-col items-center px-2.5 py-1 rounded-xl ${
+                            idx === todayIdx 
+                                ? 'bg-brand-600 text-white font-bold shadow-sm' 
+                                : 'text-slate-500 dark:text-slate-400'
+                        }">
+                            <span>${day}</span>
+                            ${idx === todayIdx ? '<span class="text-[9px] uppercase tracking-tighter opacity-90">Heute</span>' : ''}
+                        </span>
+                    </th>
+                `).join('')}
+                <th class="py-3 pl-4 text-right w-40">Wochen-Fortschritt</th>
+                <th class="py-3 pl-2 w-10"></th>
+            `;
+
+            if (appState.habits.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="py-8 text-center text-slate-400 dark:text-slate-500">
+                            Noch keine Gewohnheiten angelegt. Füge oben deine erste Routine für die Woche hinzu!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = appState.habits.map(habit => {
+                const doneCount = habit.days.filter(Boolean).length;
+                const target = habit.target || 5;
+                const pct = Math.min(100, Math.round((doneCount / target) * 100));
+                const reachedTarget = doneCount >= target;
+
+                return `
+                    <tr class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td class="py-3.5 pr-4 font-medium text-slate-800 dark:text-slate-100">
+                            <div class="flex items-center gap-2">
+                                <span>${escapeHtml(habit.name)}</span>
+                                ${reachedTarget ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold">Ziel erreicht!</span>' : ''}
+                            </div>
+                        </td>
+                        ${habit.days.map((isDone, dayIdx) => `
+                            <td class="py-3.5 px-2 text-center">
+                                <button 
+                                    onclick="toggleHabitDay('${habit.id}', ${dayIdx})"
+                                    class="w-9 h-9 rounded-xl mx-auto flex items-center justify-center transition-all ${
+                                        isDone 
+                                            ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25 animate-check-pop' 
+                                            : dayIdx === todayIdx
+                                                ? 'bg-brand-500/10 border-2 border-brand-500/40 text-transparent hover:border-brand-500'
+                                                : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-transparent hover:border-emerald-500/60'
+                                    }"
+                                    title="${WEEKDAYS_FULL[dayIdx]}: ${isDone ? 'Erledigt' : 'Als erledigt markieren'}"
+                                >
+                                    <i data-lucide="check" class="w-4 h-4 ${isDone ? 'opacity-100' : 'opacity-0'}"></i>
+                                </button>
+                            </td>
+                        `).join('')}
+                        <td class="py-3.5 pl-4 text-right">
+                            <div class="flex flex-col items-end gap-1">
+                                <span class="text-xs font-semibold ${reachedTarget ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">
+                                    ${doneCount} / ${target} Tage (${pct}%)
+                                </span>
+                                <div class="w-28 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full transition-all duration-500 ${reachedTarget ? 'bg-emerald-500' : 'bg-brand-500'}" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3.5 pl-2 text-right">
+                            <button onclick="deleteHabit('${habit.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 opacity-75 sm:opacity-0 group-hover:opacity-100 transition" title="Gewohnheit löschen">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function toggleHabitDay(habitId, dayIdx) {
+            const habit = appState.habits.find(h => h.id === habitId);
+            if (!habit) return;
+            habit.days[dayIdx] = !habit.days[dayIdx];
+            saveState();
+            renderHabitMatrix();
+            updateKPIsAndCharts();
+
+            const doneCount = habit.days.filter(Boolean).length;
+            if (habit.days[dayIdx] && doneCount === habit.target) {
+                triggerConfetti();
+                showToast(`Wochenziel für "${habit.name}" erreicht!`, 'success');
+            }
+        }
+
+        function handleAddHabit(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('new-habit-name');
+            const targetSelect = document.getElementById('new-habit-target');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            appState.habits.push({
+                id: 'habit_' + Date.now(),
+                name,
+                target: parseInt(targetSelect.value, 10) || 5,
+                days: [false, false, false, false, false, false, false]
+            });
+
+            nameInput.value = '';
+            saveState();
+            renderHabitMatrix();
+            updateKPIsAndCharts();
+            showToast('Neue Gewohnheit zur Wochen-Matrix hinzugefügt!', 'info');
+        }
+
+        function deleteHabit(id) {
+            appState.habits = appState.habits.filter(h => h.id !== id);
+            saveState();
+            renderHabitMatrix();
+            updateKPIsAndCharts();
+        }
+
+        // ==========================================
+        // 7. MEILENSTEINE & REFLEXION
+        // ==========================================
+        function renderWinsAndReflection() {
+            const container = document.getElementById('wins-grid-container');
+            const badge = document.getElementById('wins-count-badge');
+            const reflectionEl = document.getElementById('weekly-reflection-textarea');
+
+            if (reflectionEl.value !== appState.reflection) {
+                reflectionEl.value = appState.reflection || '';
+            }
+
+            badge.textContent = `${appState.wins.length} ${appState.wins.length === 1 ? 'Erfolg' : 'Erfolge'} dokumentiert`;
+
+            if (appState.wins.length === 0) {
+                container.innerHTML = `
+                    <div class="sm:col-span-2 py-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400">
+                        Noch keine Meilensteine für diese Woche eingetragen. Halte deinen ersten Erfolg oben fest!
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = appState.wins.map(win => {
+                const style = CATEGORY_STYLES[win.tag] || CATEGORY_STYLES['Meilenstein'];
+                return `
+                    <div class="group relative p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex flex-col justify-between gap-3 hover:border-amber-500/40 transition-all">
+                        <div class="flex items-start justify-between gap-2">
+                            <span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${style.badge}">
+                                ${style.icon} ${win.tag}
+                            </span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] text-slate-400 dark:text-slate-500">${win.day || 'Diese Woche'}</span>
+                                <button onclick="deleteWin('${win.id}')" class="text-slate-400 hover:text-rose-500 opacity-75 sm:opacity-0 group-hover:opacity-100 transition" title="Eintrag entfernen">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-sm font-medium text-slate-800 dark:text-slate-100 leading-snug">
+                            ${escapeHtml(win.text)}
+                        </p>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function handleAddWin(e) {
+            e.preventDefault();
+            const textEl = document.getElementById('new-win-text');
+            const tagEl = document.getElementById('new-win-tag');
+            const text = textEl.value.trim();
+            if (!text) return;
+
+            const todayName = WEEKDAYS_FULL[getTodayWeekdayIndex()];
+            appState.wins.unshift({
+                id: 'win_' + Date.now(),
+                text,
+                tag: tagEl.value,
+                day: todayName
+            });
+
+            textEl.value = '';
+            saveState();
+            renderWinsAndReflection();
+            triggerConfetti();
+            showToast('Meilenstein im Erfolgs-Logbuch gespeichert!', 'success');
+        }
+
+        function deleteWin(id) {
+            appState.wins = appState.wins.filter(w => w.id !== id);
+            saveState();
+            renderWinsAndReflection();
+        }
+
+        let reflectionTimeout;
+        function saveReflectionText(val) {
+            appState.reflection = val;
+            saveState();
+            const indicator = document.getElementById('reflection-saved-indicator');
+            indicator.classList.remove('opacity-0');
+            clearTimeout(reflectionTimeout);
+            reflectionTimeout = setTimeout(() => {
+                indicator.classList.add('opacity-0');
+            }, 1800);
+        }
+
+        // ==========================================
+        // 8. STATISTIKEN, DIAGRAMME & FORTSCHRITTSRING
+        // ==========================================
+        function updateKPIsAndCharts() {
+            // 1. Heutiger Fortschritt (Tagesaufgaben + Daily Highlight)
+            const totalTodos = appState.todos.length;
+            const doneTodos = appState.todos.filter(t => t.completed).length;
+            const hasHighlight = Boolean(appState.dailyHighlight.text && appState.dailyHighlight.text.trim().length > 0);
+            const highlightDone = appState.dailyHighlight.completed ? 1 : 0;
+
+            const totalDailyItems = totalTodos + (hasHighlight ? 1 : 0);
+            const doneDailyItems = doneTodos + (hasHighlight ? highlightDone : 0);
+            const dailyPercent = totalDailyItems > 0 ? Math.round((doneDailyItems / totalDailyItems) * 100) : 0;
+
+            document.getElementById('kpi-daily-percent').textContent = `${dailyPercent}%`;
+            document.getElementById('kpi-daily-fraction').textContent = `(${doneDailyItems}/${totalDailyItems} erledigt)`;
+
+            // SVG Fortschrittsring aktualisieren (Radius = 26 -> Umfang = 163.36)
+            const circumference = 163.36;
+            const offset = circumference - (dailyPercent / 100) * circumference;
+            document.getElementById('daily-ring-circle').style.strokeDashoffset = offset;
+
+            // Aufgaben-Fortschrittsbalken im To-Do Header
+            const todoOnlyPercent = totalTodos > 0 ? Math.round((doneTodos / totalTodos) * 100) : 0;
+            document.getElementById('todo-progress-label').textContent = `${todoOnlyPercent}%`;
+            document.getElementById('todo-progress-bar').style.width = `${todoOnlyPercent}%`;
+
+            // 2. Wochen-Erfolgsquote & Gesamtzahl erledigter Ziele
+            const totalHabitChecks = appState.habits.reduce((acc, h) => acc + h.days.filter(Boolean).length, 0);
+            const totalHabitTargets = appState.habits.reduce((acc, h) => acc + (h.target || 5), 0);
+            const weeklyPercent = totalHabitTargets > 0 ? Math.min(100, Math.round((totalHabitChecks / totalHabitTargets) * 100)) : 0;
+
+            document.getElementById('kpi-weekly-percent').textContent = `${weeklyPercent}%`;
+            document.getElementById('kpi-weekly-bar').style.width = `${weeklyPercent}%`;
+
+            const totalCompletedWeek = totalHabitChecks + doneDailyItems;
+            document.getElementById('kpi-total-completed').textContent = totalCompletedWeek;
+            document.getElementById('kpi-total-breakdown').textContent = `${totalHabitChecks} Habits • ${doneDailyItems} Tagesziele`;
+
+            // 3. Streak Anzeige
+            document.getElementById('kpi-streak-days').textContent = appState.streak;
+            document.getElementById('header-streak-count').textContent = appState.streak;
+
+            // 4. Wöchentliches Balkendiagramm (Mo - So)
+            renderWeeklyBarChart();
+
+            // 5. Fokus-Verteilung nach Kategorien
+            renderCategoryBreakdown();
+        }
+
+        function renderWeeklyBarChart() {
+            const chartEl = document.getElementById('weekly-bar-chart');
+            const bestDayBadge = document.getElementById('best-day-badge');
+            const maxHabits = Math.max(1, appState.habits.length);
+            const todayIdx = getTodayWeekdayIndex();
+
+            const dayCounts = WEEKDAYS.map((_, dayIdx) => {
+                return appState.habits.reduce((sum, h) => sum + (h.days[dayIdx] ? 1 : 0), 0);
+            });
+
+            // Besten Tag ermitteln
+            let maxVal = 0;
+            let bestDayIdx = -1;
+            dayCounts.forEach((count, idx) => {
+                if (count > maxVal) {
+                    maxVal = count;
+                    bestDayIdx = idx;
+                }
+            });
+
+            bestDayBadge.textContent = bestDayIdx >= 0
+                ? `Top-Tag: ${WEEKDAYS_FULL[bestDayIdx]} (${maxVal})`
+                : 'Top-Tag: Noch offen';
+
+            chartEl.innerHTML = WEEKDAYS.map((dayLabel, idx) => {
+                const count = dayCounts[idx];
+                const pct = Math.round((count / maxHabits) * 100);
+                const barHeight = count === 0 ? 8 : Math.max(16, pct);
+                const isToday = idx === todayIdx;
+
+                let barColor = 'bg-slate-200 dark:bg-slate-800';
+                if (count > 0) {
+                    barColor = pct >= 80
+                        ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-sm shadow-emerald-500/20'
+                        : isToday
+                            ? 'bg-gradient-to-t from-brand-600 to-brand-400 shadow-sm shadow-brand-500/20'
+                            : 'bg-gradient-to-t from-brand-600/80 to-indigo-400/80';
+                }
+
+                return `
+                    <div class="flex-1 flex flex-col items-center h-full justify-end group">
+                        <span class="text-[11px] font-bold mb-1.5 transition-opacity ${
+                            count > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 opacity-60'
+                        }">
+                            ${count}/${appState.habits.length}
+                        </span>
+                        <div class="w-full max-w-[42px] bg-slate-100 dark:bg-slate-800/70 rounded-t-2xl h-32 flex items-end p-1">
+                            <div class="chart-bar w-full rounded-xl ${barColor}" style="height: ${barHeight}%"></div>
+                        </div>
+                        <span class="mt-2 text-xs font-semibold px-2 py-0.5 rounded-lg ${
+                            isToday 
+                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400' 
+                                : 'text-slate-500 dark:text-slate-400'
+                        }">
+                            ${dayLabel}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCategoryBreakdown() {
+            const container = document.getElementById('category-breakdown-bars');
+            const summaryCount = document.getElementById('category-summary-count');
+            const categories = ['Studium', 'Kreativprojekt', 'Fitness', 'Alltag'];
+
+            summaryCount.textContent = `${appState.todos.length} Tagesaufgaben`;
+
+            container.innerHTML = categories.map(cat => {
+                const items = appState.todos.filter(t => t.category === cat);
+                const done = items.filter(t => t.completed).length;
+                const total = items.length;
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                const style = CATEGORY_STYLES[cat];
+
+                return `
+                    <div class="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-medium text-slate-700 dark:text-slate-200">${style.icon} ${cat}</span>
+                            <span class="text-slate-400 font-semibold">${done}/${total}</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div class="${style.bar} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // 9. RESET & DEMO-DATEN MODAL
+        // ==========================================
+        function openResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function resetWeeklyCheckinsOnly() {
+            appState.habits = appState.habits.map(h => ({
+                ...h,
+                days: [false, false, false, false, false, false, false]
+            }));
+            appState.todos = appState.todos.map(t => ({ ...t, completed: false }));
+            appState.dailyHighlight.completed = false;
+            saveState();
+            closeResetModal();
+            renderAll();
+            showToast('Neue Woche gestartet! Alle Haken wurden zurückgesetzt.', 'info');
+        }
+
+        function restoreDemoData() {
+            const currentTheme = appState.theme;
+            appState = getDefaultState();
+            appState.theme = currentTheme;
+            saveState();
+            closeResetModal();
+            renderAll();
+            showToast('Beispiel-Daten wurden erfolgreich geladen!', 'success');
+        }
+
+        // ==========================================
+        // 10. KONFETTI & TOAST BENACHRICHTIGUNGEN
+        // ==========================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const isSuccess = type === 'success';
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${
+                isSuccess
+                    ? 'bg-emerald-600 text-white border-emerald-500'
+                    : 'bg-slate-900 dark:bg-slate-800 text-white border-slate-700'
+            }`;
+
+            toast.innerHTML = `
+                <i data-lucide="${isSuccess ? 'party-popper' : 'check-circle'}" class="w-4 h-4 flex-shrink-0"></i>
+                <span>${escapeHtml(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Leichtgewichtiges Canvas-Konfetti bei Erfolgen
+        function triggerConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+            const pieces = Array.from({ length: 55 }, () => ({
+                x: canvas.width / 2 + (Math.random() - 0.5) * 260,
+                y: canvas.height * 0.35,
+                vx: (Math.random() - 0.5) * 11,
+                vy: -Math.random() * 10 - 4,
+                size: Math.random() * 7 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rot: Math.random() * 360,
+                vRot: (Math.random() - 0.5) * 10
+            }));
+
+            let frame = 0;
+            function animateConfetti() {
+                frame++;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                pieces.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.32; // Schwerkraft
+                    p.rot += p.vRot;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rot * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+                    ctx.restore();
+                });
+
+                if (frame < 75) {
+                    requestAnimationFrame(animateConfetti);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            requestAnimationFrame(animateConfetti);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ==========================================
+        // 11. GESAMTES DASHBOARD RENDERN
+        // ==========================================
+        function renderAll() {
+            applyTheme();
+            initDateHeader();
+            renderDailyHighlight();
+            renderTodos();
+            renderHabitMatrix();
+            renderWinsAndReflection();
+            updateKPIsAndCharts();
+            lucide.createIcons();
+        }
+
+        window.onload = function () {
+            renderAll();
+        };
+    </script>
+</body>
+</html>
